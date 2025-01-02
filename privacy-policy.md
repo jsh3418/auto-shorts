@@ -1,6 +1,6 @@
 # Privacy Policy for AutoShorts Chrome Extension
 
-Last updated: [현재 날짜]
+Last updated: 2025.01.03.
 
 ## Data Collection
 AutoShorts does not collect, store, or transmit any personal information or user data to external servers. All user preferences (such as autoplay settings) are stored locally in your browser using Chrome's storage API.

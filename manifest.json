@@ -3,7 +3,7 @@
   "name": "AutoShorts",
   "version": "1.0.0",
   "description": "Automatically plays next YouTube Shorts videos for seamless viewing experience",
-  "permissions": ["activeTab", "storage"],
+  "permissions": ["storage"],
   "action": {
     "default_popup": "popup.html"
   },

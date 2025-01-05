@@ -1,14 +1,18 @@
+const YT_PLAYER_PROGRESS_BAR_DRAG_CONTAINER =
+  ".ytPlayerProgressBarDragContainer";
+
 let isEnabled = true;
+let currentObserver = null;
 
 chrome.storage.local.get(["autoplayEnabled"], (result) => {
-  isEnabled = result.autoplayEnabled !== false;
+  isEnabled = result.autoplayEnabled === true;
 });
 
 chrome.storage.onChanged.addListener((changes) => {
   if (changes.autoplayEnabled) {
     isEnabled = changes.autoplayEnabled.newValue;
-    if (!isEnabled && window.currentObserver) {
-      window.currentObserver.disconnect();
+    if (!isEnabled && currentObserver) {
+      currentObserver.disconnect();
     } else if (isEnabled) {
       waitForElement(observeProgress);
     }
@@ -19,11 +23,11 @@ const observeProgress = () => {
   if (!isEnabled) return;
 
   let hasReached90Percent = false;
-  const target = document.querySelector(
-    '[role="slider"][aria-label="탐색 슬라이더"]'
+  const ytbProgressBar = document.querySelector(
+    YT_PLAYER_PROGRESS_BAR_DRAG_CONTAINER
   );
 
-  if (!target) {
+  if (!ytbProgressBar) {
     alert(
       "문제가 생겼습니다. 개발자에게 문의해주세요. email: albert5428@gmail.com"
     );
@@ -38,7 +42,7 @@ const observeProgress = () => {
         mutation.type === "attributes" &&
         mutation.attributeName === "aria-valuenow"
       ) {
-        const value = parseInt(target.getAttribute("aria-valuenow"));
+        const value = parseInt(ytbProgressBar.getAttribute("aria-valuenow"));
 
         if (value >= 90) {
           hasReached90Percent = true;
@@ -50,8 +54,8 @@ const observeProgress = () => {
     });
   });
 
-  window.currentObserver = observer;
-  observer.observe(target, { attributes: true });
+  currentObserver = observer;
+  observer.observe(ytbProgressBar, { attributes: true });
 };
 
 const handleNextAction = () => {
@@ -71,12 +75,12 @@ const waitForElement = (callback, maxAttempts = 10) => {
   let attempts = 0;
 
   const tryObserve = () => {
-    const target = document.querySelector(
-      '[role="slider"][aria-label="탐색 슬라이더"]'
+    const ytbProgressBar = document.querySelector(
+      YT_PLAYER_PROGRESS_BAR_DRAG_CONTAINER
     );
-    if (target) {
-      if (window.currentObserver) {
-        window.currentObserver.disconnect();
+    if (ytbProgressBar) {
+      if (currentObserver) {
+        currentObserver.disconnect();
       }
       callback();
     } else if (attempts < maxAttempts) {
@@ -91,9 +95,7 @@ const waitForElement = (callback, maxAttempts = 10) => {
   tryObserve();
 };
 
-document.addEventListener("DOMContentLoaded", () => {
-  waitForElement(observeProgress);
-});
+waitForElement(observeProgress);
 
 const urlObserver = new MutationObserver((mutations) => {
   setTimeout(() => waitForElement(observeProgress), 500);

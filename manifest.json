@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AutoShorts",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Automatically plays next YouTube Shorts videos for seamless viewing experience",
   "permissions": ["storage"],
   "action": {

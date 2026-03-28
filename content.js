@@ -1,107 +1,76 @@
-const YT_PLAYER_PROGRESS_BAR_DRAG_CONTAINER =
-  ".ytPlayerProgressBarDragContainer";
-
 let isEnabled = true;
-let currentObserver = null;
+let currentVideo = null;
+let hasTriggeredNext = false;
 
 chrome.storage.local.get(["autoplayEnabled"], (result) => {
-  isEnabled = result.autoplayEnabled === true;
+  isEnabled = result.autoplayEnabled !== false;
 });
 
 chrome.storage.onChanged.addListener((changes) => {
   if (changes.autoplayEnabled) {
     isEnabled = changes.autoplayEnabled.newValue;
-    if (!isEnabled && currentObserver) {
-      currentObserver.disconnect();
-    } else if (isEnabled) {
-      waitForElement(observeProgress);
-    }
   }
 });
 
-const observeProgress = () => {
-  if (!isEnabled) return;
+const onTimeUpdate = () => {
+  if (!isEnabled || hasTriggeredNext || !currentVideo) return;
+  const { duration, currentTime } = currentVideo;
+  if (duration > 0 && duration - currentTime < 0) {
+    hasTriggeredNext = true;
+    handleNextAction();
+  }
+};
 
-  let hasReached90Percent = false;
-  const ytbProgressBar = document.querySelector(
-    YT_PLAYER_PROGRESS_BAR_DRAG_CONTAINER
-  );
+const setupVideo = () => {
+  const video = document.querySelector("video");
+  if (!video) return;
 
-  if (!ytbProgressBar) {
-    alert(
-      "문제가 생겼습니다. 개발자에게 문의해주세요. email: albert5428@gmail.com"
-    );
-    return;
+  if (video === currentVideo) return;
+
+  if (currentVideo) {
+    currentVideo.removeEventListener("timeupdate", onTimeUpdate);
   }
 
-  const observer = new MutationObserver((mutations) => {
-    if (!isEnabled) return;
-
-    mutations.forEach((mutation) => {
-      if (
-        mutation.type === "attributes" &&
-        mutation.attributeName === "aria-valuenow"
-      ) {
-        const value = parseInt(ytbProgressBar.getAttribute("aria-valuenow"));
-
-        if (value >= 90) {
-          hasReached90Percent = true;
-        } else if (value < 5 && hasReached90Percent) {
-          hasReached90Percent = false;
-          handleNextAction();
-        }
-      }
-    });
-  });
-
-  currentObserver = observer;
-  observer.observe(ytbProgressBar, { attributes: true });
+  currentVideo = video;
+  hasTriggeredNext = false;
+  video.addEventListener("timeupdate", onTimeUpdate);
 };
 
 const handleNextAction = () => {
-  const arrowDownEvent = new KeyboardEvent("keydown", {
-    key: "ArrowDown",
-    code: "ArrowDown",
-    keyCode: 40,
-    which: 40,
-    bubbles: true,
-    cancelable: true,
-  });
-
-  document.dispatchEvent(arrowDownEvent);
+  document.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      key: "ArrowDown",
+      code: "ArrowDown",
+      keyCode: 40,
+      which: 40,
+      bubbles: true,
+      cancelable: true,
+    }),
+  );
 };
 
-const waitForElement = (callback, maxAttempts = 10) => {
+const waitForVideo = (maxAttempts = 10) => {
   let attempts = 0;
-
-  const tryObserve = () => {
-    const ytbProgressBar = document.querySelector(
-      YT_PLAYER_PROGRESS_BAR_DRAG_CONTAINER
-    );
-    if (ytbProgressBar) {
-      if (currentObserver) {
-        currentObserver.disconnect();
-      }
-      callback();
+  const tryFind = () => {
+    if (document.querySelector("video")) {
+      setupVideo();
     } else if (attempts < maxAttempts) {
       attempts++;
-      console.log(`슬라이더 감지 시도 ${attempts}번째...`);
-      setTimeout(tryObserve, 1000);
-    } else {
-      console.log("슬라이더 감지 실패");
+      setTimeout(tryFind, 1000);
     }
   };
-
-  tryObserve();
+  tryFind();
 };
 
-waitForElement(observeProgress);
+waitForVideo();
 
-const urlObserver = new MutationObserver((mutations) => {
-  setTimeout(() => waitForElement(observeProgress), 500);
+// SPA 네비게이션 감지: 다음 쇼츠로 이동 시 video 엘리먼트 재설정
+const titleObserver = new MutationObserver(() => {
+  hasTriggeredNext = false;
+  setTimeout(waitForVideo, 500);
 });
 
-urlObserver.observe(document.querySelector("title"), {
+titleObserver.observe(document.querySelector("title"), {
   subtree: true,
   characterData: true,
   childList: true,

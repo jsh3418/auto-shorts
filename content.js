@@ -1,6 +1,7 @@
 let isEnabled = true;
 let currentVideo = null;
 let hasTriggeredNext = false;
+let videoCheckInterval = null;
 
 chrome.storage.local.get(["autoplayEnabled"], (result) => {
   isEnabled = result.autoplayEnabled !== false;
@@ -12,28 +13,67 @@ chrome.storage.onChanged.addListener((changes) => {
   }
 });
 
+const isShorts = () => location.pathname.startsWith("/shorts/");
+
 const onTimeUpdate = () => {
   if (!isEnabled || hasTriggeredNext || !currentVideo) return;
   const { duration, currentTime } = currentVideo;
-  if (duration > 0 && duration - currentTime < 0) {
+  if (duration > 0 && duration - currentTime < 0.3) {
     hasTriggeredNext = true;
     handleNextAction();
   }
 };
 
-const setupVideo = () => {
-  const video = document.querySelector("video");
-  if (!video) return;
+const cleanupVideo = () => {
+  if (currentVideo) {
+    currentVideo.removeEventListener("timeupdate", onTimeUpdate);
+    currentVideo = null;
+  }
+  if (videoCheckInterval) {
+    clearInterval(videoCheckInterval);
+    videoCheckInterval = null;
+  }
+};
 
+const attachToVideo = (video) => {
   if (video === currentVideo) return;
-
   if (currentVideo) {
     currentVideo.removeEventListener("timeupdate", onTimeUpdate);
   }
-
   currentVideo = video;
   hasTriggeredNext = false;
   video.addEventListener("timeupdate", onTimeUpdate);
+};
+
+const findActiveVideo = () => {
+  const videos = document.querySelectorAll("video");
+  for (const v of videos) {
+    if (v.src && !v.paused && v.duration > 0) {
+      return v;
+    }
+  }
+  for (const v of videos) {
+    if (v.src && v.duration > 0) {
+      return v;
+    }
+  }
+  return null;
+};
+
+const startVideoCheck = () => {
+  if (videoCheckInterval) clearInterval(videoCheckInterval);
+
+  videoCheckInterval = setInterval(() => {
+    if (!isShorts()) {
+      cleanupVideo();
+      return;
+    }
+
+    const video = findActiveVideo();
+    if (video && video !== currentVideo) {
+      attachToVideo(video);
+    }
+  }, 1000);
 };
 
 const handleNextAction = () => {
@@ -49,29 +89,25 @@ const handleNextAction = () => {
   );
 };
 
-const waitForVideo = (maxAttempts = 10) => {
-  let attempts = 0;
-  const tryFind = () => {
-    if (document.querySelector("video")) {
-      setupVideo();
-    } else if (attempts < maxAttempts) {
-      attempts++;
-      setTimeout(tryFind, 1000);
-    }
-  };
-  tryFind();
+const onNavigate = () => {
+  hasTriggeredNext = false;
+  if (isShorts()) {
+    startVideoCheck();
+  } else {
+    cleanupVideo();
+  }
 };
 
-waitForVideo();
+document.addEventListener("yt-navigate-finish", onNavigate);
 
-// SPA 네비게이션 감지: 다음 쇼츠로 이동 시 video 엘리먼트 재설정
-const titleObserver = new MutationObserver(() => {
-  hasTriggeredNext = false;
-  setTimeout(waitForVideo, 500);
-});
+let lastUrl = location.href;
+setInterval(() => {
+  if (location.href !== lastUrl) {
+    lastUrl = location.href;
+    onNavigate();
+  }
+}, 1000);
 
-titleObserver.observe(document.querySelector("title"), {
-  subtree: true,
-  characterData: true,
-  childList: true,
-});
+if (isShorts()) {
+  startVideoCheck();
+}

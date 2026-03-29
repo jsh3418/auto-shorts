@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AutoShorts - YouTube Shorts Auto Scroll",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Automatically plays next YouTube Shorts videos for seamless viewing experience",
   "permissions": ["storage"],
   "action": {
